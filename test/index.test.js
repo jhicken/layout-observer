@@ -40,6 +40,8 @@ const dispatchEvent = (target, eventType) => {
   target.dispatchEvent(event);
 };
 
+const delayForThrottle = 15;
+
 describe('Layout Observer', () => {
   let spy;
   let observer;
@@ -63,11 +65,14 @@ describe('Layout Observer', () => {
     });
   });
 
-  it('notifies observer on events', () => {
-    EVENT_TYPES.forEach(eventType => {
+  EVENT_TYPES.forEach((eventType)=>{
+    it('notifies observer on event ' + eventType, (done) => {
       dispatchEvent(window, eventType);
-      expect(spy).toHaveBeenCalled();
-      spy.calls.reset();
+      setTimeout(() => {
+        expect(spy).toHaveBeenCalled();
+        spy.calls.reset();
+        done();
+      }, delayForThrottle);
     });
   });
 
@@ -77,7 +82,7 @@ describe('Layout Observer', () => {
     setTimeout(() => {
       expect(spy).toHaveBeenCalled();
       done();
-    });
+    }, delayForThrottle);
   });
 
   it('notifies observer when a DOM attribute is set', done => {
@@ -86,7 +91,7 @@ describe('Layout Observer', () => {
     setTimeout(() => {
       expect(spy).toHaveBeenCalled();
       done();
-    });
+    }, delayForThrottle);
   });
 
   it('notifies observer when innerHTML is set', done => {
@@ -101,7 +106,7 @@ describe('Layout Observer', () => {
       setTimeout(() => {
         expect(spy).toHaveBeenCalled();
         done();
-      });
+      }, delayForThrottle);
     });
   });
 
@@ -111,12 +116,15 @@ describe('Layout Observer', () => {
     document.body.appendChild(img);
 
     document.body.addEventListener('load', () => {
-      expect(spy).toHaveBeenCalled();
-      done();
+      setTimeout(()=>{
+        expect(spy).toHaveBeenCalled();
+        done();
+      }, delayForThrottle);
     }, true);
   });
 
-  it('notifies only and all connected observers', () => {
+
+  it('notifies only and all connected observers', (done) => {
     const spy1 = jasmine.createSpy();
     const observer1 = new LayoutObserver(spy1);
     const spy2 = jasmine.createSpy();
@@ -124,35 +132,64 @@ describe('Layout Observer', () => {
 
     dispatchEvent(window, 'mousedown');
 
-    expect(spy1).not.toHaveBeenCalled();
-    expect(spy2).not.toHaveBeenCalled();
+    setTimeout(()=>{
+      expect(spy1).not.toHaveBeenCalled();
+      expect(spy2).not.toHaveBeenCalled();
+      observer1.observe();
+      observer2.observe();
 
-    observer1.observe();
-    observer2.observe();
+      dispatchEvent(window, 'mousedown');
 
-    dispatchEvent(window, 'mousedown');
+      setTimeout(()=>{
+        expect(spy1).toHaveBeenCalled();
+        expect(spy2).toHaveBeenCalled();
 
-    expect(spy1).toHaveBeenCalled();
-    expect(spy2).toHaveBeenCalled();
+        spy1.calls.reset();
+        spy2.calls.reset();
 
-    spy1.calls.reset();
-    spy2.calls.reset();
+        observer2.disconnect();
 
-    observer2.disconnect();
+        dispatchEvent(window, 'mousedown');
 
-    dispatchEvent(window, 'mousedown');
+        setTimeout(()=>{
+          expect(spy1).toHaveBeenCalled();
+          expect(spy2).not.toHaveBeenCalled();
 
-    expect(spy1).toHaveBeenCalled();
-    expect(spy2).not.toHaveBeenCalled();
+          spy1.calls.reset();
+          spy2.calls.reset();
 
-    spy1.calls.reset();
-    spy2.calls.reset();
+          observer1.disconnect();
 
-    observer1.disconnect();
+          dispatchEvent(window, 'mousedown');
 
-    dispatchEvent(window, 'mousedown');
+          setTimeout(()=>{
+            expect(spy1).not.toHaveBeenCalled();
+            expect(spy2).not.toHaveBeenCalled();
+            done();
+          }, delayForThrottle);
+        }, delayForThrottle);
+      }, delayForThrottle);
+    }, delayForThrottle);
 
-    expect(spy1).not.toHaveBeenCalled();
-    expect(spy2).not.toHaveBeenCalled();
+  });
+
+  it('should be throttled', (done) => {
+
+    for(let i = 0; i < 500; i++) {
+      dispatchEvent(window, 'mousedown');
+    }
+
+    setTimeout(() => {
+      expect(spy.calls.count() > 0 && spy.calls.count() < 10).toBe(true);
+
+      for(let i = 0; i < 500; i++) {
+        dispatchEvent(window, 'mousedown');
+      }
+      setTimeout(() => {
+        expect(spy.calls.count() > 2 && spy.calls.count() < 10).toBe(true);
+        done();
+        spy.calls.reset();
+      }, delayForThrottle);
+    }, delayForThrottle);
   });
 });
